@@ -1,0 +1,14 @@
+{
+  "server": {
+    "port": 8090,
+    "location": "/proxy"
+  },
+  "browserPool": {
+    "capacity": 3,
+    "browserURL": "http://chrome1:9222",
+    "inactivityTimeout": 60000,
+    "liveTimeout": 600000,
+    "scriptTimeout": 300000
+  },
+  "endpoint": "wss://my-handicapped-pet.io/proxy/ws/"
+}
