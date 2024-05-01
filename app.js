@@ -4,8 +4,9 @@ const { WebSocketServer } = require('ws');
 const http = require('http');
 const puppeteer = require('puppeteer-core');
 const dns = require('dns');
-const requestHandler = require('./request-handler');
-const { bufferToBase64, base64ToBuffer } = require('./binary-util');
+const requestHandler = require('./util/request-handler');
+const { bufferToBase64, base64ToBuffer } = require('./util/binary-util');
+const { logger } = require('./util/infra-util');
 
 // headers that we pass through
 const proxyHeaderNames = ['content-type'];
@@ -389,7 +390,7 @@ server.listen(config.server.port, '0.0.0.0');
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
-  ws.on('error', console.warn);
+  ws.on('error', logger.warn);
 
   ws.on('message', (data) => {
     const message = JSON.parse(data);
@@ -410,7 +411,7 @@ wss.on('connection', (ws) => {
     }
 
     function sendError(error) {
-      console.warn(error);
+      logger.warn(error);
       sendMessage({ type: "error", error: error.toString() });
     }
 
@@ -441,7 +442,7 @@ wss.on('connection', (ws) => {
         const f = new Function('page', `return (${message.script})(page);`);
         f(page).then(sendResult, sendError);
       } else {
-        console.warn("Bad command, ignore");
+        logger.warn("Bad command, ignore");
       }
     } catch (e) {
       sendError(e);

@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "pino": "^9.0.0",
     "puppeteer-core": "^22.6.5",
     "ws": "^8.16.0"
   }

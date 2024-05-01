@@ -1,4 +1,5 @@
 const { bufferToString } = require('./binary-util');
+const { logger } = require('./infra-util');
 
 /**
  * Request handler (simply wrap http requests and responses)
@@ -150,7 +151,7 @@ function requestHandler(request, response) {
      * @param errorMessage {*}
      */
     error: function (errorMessage) {
-      console.error(errorMessage);
+      logger.error(errorMessage);
       response.statusCode = 500;
       const body = {};
       if (errorMessage && typeof errorMessage.toString == 'function') {
