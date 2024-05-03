@@ -8,7 +8,8 @@
     "browserURL": "http://127.0.0.1:9222",
     "inactivityTimeout": 60000,
     "liveTimeout": 600000,
-    "scriptTimeout": 300000
+    "scriptTimeout": 300000,
+    "maxRedirectCount": 3
   },
   "endpoint": "ws://127.0.0.1:8090"
 }

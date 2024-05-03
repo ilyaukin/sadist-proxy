@@ -118,6 +118,14 @@ function startIntercept(session, page) {
     },
 
     onResponse: function (response) {
+      switch (response.status()) {
+        case 304:
+          return;
+
+        default:
+          break;
+      }
+
       // save response to handle /ref
       const url = response.url();
       (this.storage[url] ||= {}).response = response;
@@ -171,6 +179,10 @@ function startIntercept(session, page) {
 // GET /<session-id>/visit/<URL>  -- open a page in this session
 // GET /<session-id>/ref/<URL>  -- get a resource referenced by the page
 // *** /<session-id>/fetch/<URL>  -- fetch a resource on behalf of the page
+// GET /<session-id>/page  -- get current opened page
+// GET /<session-id>/reload  -- reload current opened page
+// GET /<session-id>/go-back  -- go back to the previous page
+// GET /<session-id>/go-forward  -- go forward to the next page
 // DELETE /<session-id>  -- terminate session
 const server = http.createServer();
 
@@ -186,11 +198,10 @@ server.on('request', (request, response) => {
     return proxyHeaders;
   }
 
-  async function getPatchedPageContent(session) {
+  async function getPatchedPageContent({ session, page }) {
     // clone document, and do some manipulations with it,
     // to be able to show it in iframe with correct (i.e. proxy) refs.
     // "/proxy/" is a public path of our web server
-    const { page } = sessionObj(session);
     const proxyroot = '/proxy/' + session;
     const proxyhost = request.headers.host;
     const targethost = new URL(page.url()).hostname;
@@ -256,16 +267,52 @@ window.fetch = function () {
     return patchedDoc;
   }
 
-  function getPatchedPageResponse(session, response) {
+  async function getPatchedPageResponse(response, {
+    session,
+    page,
+    interceptor
+  }, redirectStack = []) {
+    const status = response.status();
+    const headers = response.headers();
+    switch (status) {
+      case 301:
+      case 302:
+      case 308:
+        // redirect to the new location, check redirect conditions
+        //   and return response catched by the interceptor
+        redirectStack.push(response.url());
+        if (!headers.location) {
+          throw new Error(`Redirect but location is not set`);
+        }
+        if (redirectStack.indexOf(headers.location) !== -1) {
+          throw new Error(`Cyclic redirect to the location already seen`);
+        }
+        if (redirectStack.length > config.browserPool.maxRedirectCount) {
+          throw new Error(`Exceeded redirect count ${config.browserPool.maxRedirectCount}`);
+        }
+        return await getPatchedPageResponse(
+            await interceptor.getResponse(headers.location),
+            { session, page, interceptor }, redirectStack);
+
+      case 304:
+        // response not modified, get from the interceptor by the current url
+        return await getPatchedPageResponse(
+            await interceptor.getResponse(response.url()),
+            { session, page, interceptor });
+
+      default:
+        break;
+    }
+
     return {
       status: function () {
         return response.status();
       },
       headers: function () {
-        return getProxyHeaders(response.headers());
+        return getProxyHeaders(headers);
       },
       text: function () {
-        return getPatchedPageContent(session);
+        return getPatchedPageContent({ session, page });
       },
     };
   }
@@ -295,7 +342,7 @@ window.fetch = function () {
     url = decodeURIComponent(url);
     interceptor.clear();
     const response = await page.goto(url, handler.requestArgs.getJson('options'));
-    return getPatchedPageResponse(session, response);
+    return getPatchedPageResponse(response, obj);
   });
 
   handler.on(/^\/(\d+)\/ref\/(.*)/, 'GET', async (session, url) => {
@@ -360,6 +407,39 @@ window.fetch = function () {
         return Promise.resolve(base64ToBuffer(result.body));
       }
     };
+  });
+
+  handler.on(/^\/(\d+)\/page/, 'GET', async (session) => {
+    const obj = sessionObj(session);
+    const { page, interceptor } = obj;
+    return getPatchedPageResponse(await interceptor.getResponse(page.url()), obj);
+  });
+
+  handler.on(/^\/(\d+)\/reload/, 'GET', async (session) => {
+    const obj = sessionObj(session);
+    obj.accessedAt = Date.now();
+    const { page, interceptor } = obj;
+    interceptor.clear();
+    const response = await page.reload(handler.requestArgs.getJson('options'));
+    return getPatchedPageResponse(response, obj);
+  });
+
+  handler.on(/^\/(\d+)\/go-back/, 'GET', async (session) => {
+    const obj = sessionObj(session);
+    obj.accessedAt = Date.now();
+    const { page, interceptor } = obj;
+    interceptor.clear();
+    const response = await page.goBack(handler.requestArgs.getJson('options'));
+    return getPatchedPageResponse(response, obj);
+  });
+
+  handler.on(/^\/(\d+)\/go-forward/, 'GET', async (session) => {
+    const obj = sessionObj(session);
+    obj.accessedAt = Date.now();
+    const { page, interceptor } = obj;
+    interceptor.clear();
+    const response = await page.goForward(handler.requestArgs.getJson('options'));
+    return getPatchedPageResponse(response, obj);
   });
 
   handler.on(/^\/(\d+)/, 'DELETE', async (session) => {
