@@ -300,8 +300,13 @@ window.fetch = function () {
 
   handler.on(/^\/(\d+)\/ref\/(.*)/, 'GET', async (session, url) => {
     const obj = sessionObj(session);
-    const { interceptor } = obj;
+    const { page, interceptor } = obj;
     url = decodeURIComponent(url);
+    // check relative url and make it absolute according to currently opened
+    // page, this URL can happen e.g. if CSS links to some images...
+    if (!/^[a-z+]+:\/\//.test(url)) {
+      url = new URL(url, page.url()).toString();
+    }
     const response = await interceptor.getResponse(url);
     return {
       status: function () {
