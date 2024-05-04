@@ -8,7 +8,8 @@
     "browserURL": "http://chrome1:9222",
     "inactivityTimeout": 60000,
     "liveTimeout": 600000,
-    "scriptTimeout": 300000
+    "scriptTimeout": 300000,
+    "maxRedirectCount": 3
   },
   "endpoint": "wss://my-handicapped-pet.io:8043/proxy/ws/"
 }
