@@ -14,4 +14,6 @@ jobs:
   build:
     # Trigger sadist-ci's reusable workflow
     uses: ilyaukin/sadist-ci/.github/workflows/ci-develop.yml@develop
+    with:
+      image_list: '["webapp-proxy"]'
     secrets: inherit
